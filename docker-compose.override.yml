@@ -1,0 +1,31 @@
+services:
+  app:
+    build:
+      target: dev
+    environment:
+      PHP_IDE_CONFIG: "serverName=stage"
+    restart: unless-stopped
+
+  worker:
+    restart: unless-stopped
+
+  nginx:
+    restart: unless-stopped
+    ports:
+      - "80:80"
+
+  mysql:
+    restart: unless-stopped
+    ports:
+      - "3311:3306"
+
+  redis:
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+
+  mosquitto:
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"

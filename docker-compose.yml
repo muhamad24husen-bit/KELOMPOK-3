@@ -1,0 +1,108 @@
+services:
+    app:
+        build:
+            context: .
+            dockerfile: .docker/php/Dockerfile
+            target: dev
+            args:
+                WWWUSER: ${WWWUSER}
+                WWWGROUP: ${WWWGROUP}
+        restart: always
+        container_name: st-app
+        working_dir: /var/www
+        ports:
+            - "8000:8000"
+            - "5175:5173"
+        volumes:
+            - .:/var/www
+            - .docker/php/supervisord.conf:/etc/supervisord.conf
+            - .docker/php/supervisor.conf:/etc/supervisor/conf.d/supervisor.conf
+        depends_on:
+            - mysql
+            - redis
+            - mosquitto
+        networks:
+            - WebFPTE
+
+    # ── MQTT Worker (Laravel artisan mqtt:subscribe) ────────
+    worker:
+        build:
+            context: .
+            dockerfile: .docker/php/Dockerfile
+            target: dev
+            args:
+                WWWUSER: ${WWWUSER}
+                WWWGROUP: ${WWWGROUP}
+        container_name: st-worker
+        restart: always
+        command: ["php", "artisan", "mqtt:subscribe"]
+        working_dir: /var/www
+        volumes:
+            - .:/var/www
+        depends_on:
+            - mosquitto
+            - redis
+            - mysql
+        networks:
+            - WebFPTE
+
+    nginx:
+        image: nginx:alpine
+        container_name: st-nginx
+        restart: always
+        ports:
+            - "80:80"
+        volumes:
+            - .:/var/www
+            - .docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+        depends_on:
+            - app
+        networks:
+            - WebFPTE
+
+    mysql:
+        image: mysql:8.0
+        container_name: st-mysql
+        restart: always
+        environment:
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+            MYSQL_ROOT_HOST: "%"
+            MYSQL_DATABASE: ${DB_DATABASE}
+        volumes:
+            - mysql_data:/var/lib/mysql
+        networks:
+            - WebFPTE
+        ports:
+            - "3311:3306"
+
+    redis:
+        image: redis:alpine
+        container_name: st-redis
+        restart: always
+        volumes:
+            - redis_data:/data
+        networks:
+            - WebFPTE
+
+    # ── MQTT Broker (Mosquitto) ─────────────────────────────
+    mosquitto:
+        image: eclipse-mosquitto:2
+        container_name: st-mosquitto
+        restart: always
+        ports:
+            - "1883:1883"
+            - "9001:9001"
+        volumes:
+            - ./.docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+            - mosquitto_data:/mosquitto/data
+        networks:
+            - WebFPTE
+
+volumes:
+    mysql_data:
+    redis_data:
+    mosquitto_data:
+
+networks:
+    WebFPTE:
+        driver: bridge
