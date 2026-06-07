@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     <meta charset="utf-8">
@@ -11,6 +11,18 @@
         rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         rel="stylesheet" />
+
+    <script>
+        const theme = localStorage.getItem('theme') || 'system';
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    </script>
 
     <style>
         .material-symbols-outlined {
@@ -62,7 +74,7 @@
             @role('super_admin')
             <a class="{{ request()->routeIs('admin') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('admin') }}" wire:navigate>
                 <span class="material-symbols-outlined">dashboard</span>
-                Overview
+                Dashboard
             </a>
             <a class="{{ request()->routeIs('admin.client') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('admin.client') }}" wire:navigate>
                 <span class="material-symbols-outlined">layers</span>

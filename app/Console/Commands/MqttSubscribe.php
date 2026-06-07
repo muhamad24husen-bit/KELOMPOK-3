@@ -5,13 +5,13 @@ namespace App\Console\Commands;
 use App\Models\BEMS\Sensor;
 use App\Jobs\ProcessSensorData;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class MqttSubscribe extends Command
 {
-    protected $signature = 'mqtt:subscribe
-                            {--retry : Otomatis retry jika koneksi gagal}';
-    protected $description = 'Subscribe to MQTT broker and process incoming sensor data & provisioning';
+    protected $signature = 'mqtt:subscribe';
+    protected $description = 'Subscribe to MQTT broker and process incoming sensor data & provisioning (auto-reconnect)';
 
     public function handle(): void
     {
@@ -24,10 +24,10 @@ class MqttSubscribe extends Command
         $host     = config('mqtt.host', '127.0.0.1');
         $port     = (int) config('mqtt.port', 1883);
         $clientId = config('mqtt.client_id', 'laravel-subscriber') . '-' . uniqid();
-        $retry    = $this->option('retry');
         $attempt  = 0;
 
-        do {
+        // ── Infinite reconnect loop ─────────────────────────────
+        while (true) {
             $attempt++;
             $this->info("Connecting to MQTT broker {$host}:{$port} ... (attempt {$attempt})");
 
@@ -35,7 +35,13 @@ class MqttSubscribe extends Command
                 $mqtt = new \PhpMqtt\Client\MqttClient($host, $port, $clientId);
                 $mqtt->connect();
 
+                // Reset attempt counter on successful connection
+                $attempt = 0;
                 $this->info('✓ Connected to MQTT broker!');
+
+                // Update subscriber status → connected
+                Cache::put('mqtt:subscriber:status', 'connected', 600);
+                Cache::put('mqtt:subscriber:connected_at', now()->toIso8601String(), 600);
 
                 // ── Handler 1: Provisioning Request dari ESP32 ─────────
                 $mqtt->subscribe('provision/request', function (string $topic, string $payload) use ($mqtt) {
@@ -102,6 +108,9 @@ class MqttSubscribe extends Command
 
                     ProcessSensorData::dispatchSync($mac, $data);
                     $this->line("📡 Received telemetry from: {$mac} → " . json_encode($data));
+
+                    // Refresh subscriber status TTL on each message
+                    Cache::put('mqtt:subscriber:status', 'connected', 600);
                 }, 0);
 
                 // ── Handler 3: Heartbeat ───────────────────────────────
@@ -144,14 +153,24 @@ class MqttSubscribe extends Command
                 $this->info('Subscribed to: provision/request, +/+/+/telemetry, +/+/+/heartbeat, bnsms/discovery/request');
                 $this->info('Listening for messages... (Press Ctrl+C to stop)');
 
-                // Blocking loop — keeps listening
+                // Blocking loop — keeps listening (will throw on disconnect)
                 $mqtt->loop(true);
 
             } catch (\Exception $e) {
-                $this->error("MQTT connection failed: {$e->getMessage()}");
-                Log::error("MQTT Subscriber failed: {$e->getMessage()}");
+                // ── Mark subscriber as disconnected ──────────────────
+                Cache::put('mqtt:subscriber:status', 'disconnected', 600);
+                Cache::put('mqtt:subscriber:disconnected_at', now()->toIso8601String(), 600);
 
-                if (str_contains($e->getMessage(), 'Connection refused')) {
+                $isConnectionRefused = str_contains($e->getMessage(), 'Connection refused');
+                $isDataTransfer = str_contains(get_class($e), 'DataTransferException');
+
+                if ($isDataTransfer) {
+                    // Mid-session disconnect — connection was lost
+                    $this->warn("⚠ MQTT connection lost: {$e->getMessage()}");
+                    Log::warning('MQTT connection lost mid-session', ['error' => $e->getMessage()]);
+                } elseif ($isConnectionRefused) {
+                    $this->error("MQTT connection failed: {$e->getMessage()}");
+                    Log::error("MQTT Subscriber failed: {$e->getMessage()}");
                     $this->newLine();
                     $this->warn('╔══════════════════════════════════════════════════════╗');
                     $this->warn('║  MQTT Broker (Mosquitto) tidak berjalan!             ║');
@@ -161,16 +180,16 @@ class MqttSubscribe extends Command
                     $this->line('  <fg=green>sudo apt install -y mosquitto mosquitto-clients</>');
                     $this->line('  <fg=green>sudo service mosquitto start</>');
                     $this->line('');
+                } else {
+                    $this->error("MQTT error: {$e->getMessage()}");
+                    Log::error("MQTT Subscriber error: {$e->getMessage()}");
                 }
 
-                if ($retry && $attempt < 10) {
-                    $wait = min($attempt * 3, 30);
-                    $this->info("Retry in {$wait} seconds...");
-                    sleep($wait);
-                } else {
-                    return;
-                }
+                // Exponential backoff: 2s, 4s, 6s, ... max 30s
+                $wait = min(($attempt + 1) * 2, 30);
+                $this->info("🔄 Reconnecting in {$wait} seconds...");
+                sleep($wait);
             }
-        } while ($retry && $attempt < 10);
+        }
     }
 }

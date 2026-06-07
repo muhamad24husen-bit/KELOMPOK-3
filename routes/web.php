@@ -27,28 +27,28 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->group(function
 });
 
 // ── Client Panel (Pemilik Gedung) ─────────────────────────────
-Route::middleware(['auth', 'role:client'])->prefix('client')->group(function () {
+Route::middleware(['auth', 'role:super_admin|client'])->prefix('client')->group(function () {
     Route::livewire('/',       'pages::client.idx')->name('client');
     Route::livewire('/rooms',  'pages::client.room.idx')->name('client.rooms');
     Route::livewire('/staff',  'pages::client.staff.idx')->name('client.staff');
 });
 
 // ── Operator Panel ─────────────────────────────────────────────
-Route::middleware(['auth', 'role:operator'])->prefix('ops')->group(function () {
+Route::middleware(['auth', 'role:super_admin|operator'])->prefix('ops')->group(function () {
     Route::livewire('/',                'pages::operator.idx')->name('operator');
     Route::livewire('/monitor/{room}',  'pages::operator.monitor')->name('operator.monitor');
     Route::livewire('/requests',        'pages::operator.requests')->name('operator.requests');
 });
 
 // ── Maintenance Panel ──────────────────────────────────────────
-Route::middleware(['auth', 'role:maintenance'])->prefix('tech')->group(function () {
+Route::middleware(['auth', 'role:super_admin|maintenance'])->prefix('tech')->group(function () {
     Route::livewire('/',            'pages::maintenance.idx')->name('maintenance');
     Route::livewire('/nodes',       'pages::maintenance.nodes')->name('maintenance.nodes');
     Route::livewire('/diagnostics', 'pages::maintenance.diagnostics')->name('maintenance.diagnostics');
 });
 
 // ── Viewer Panel ───────────────────────────────────────────────
-Route::middleware(['auth', 'role:viewer'])->prefix('view')->group(function () {
+Route::middleware(['auth', 'role:super_admin|viewer'])->prefix('view')->group(function () {
     Route::livewire('/',        'pages::viewer.idx')->name('viewer');
     Route::livewire('/request', 'pages::viewer.request')->name('viewer.request');
 });

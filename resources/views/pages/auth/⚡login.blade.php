@@ -89,15 +89,21 @@ new #[Layout('layouts.auth')] class extends Component
         </div>
 
         <!-- Footer / Theme Toggle -->
-        <div class="mt-unit-xl flex flex-col items-center justify-center space-y-unit-md text-center">
+        <div class="mt-unit-xl flex flex-col items-center justify-center space-y-unit-md text-center" x-data="themeToggle()">
             <div class="flex items-center space-x-2 bg-slate-100 dark:bg-surface-container-high rounded-full p-1 border border-slate-200 dark:border-surface-container-highest transition-colors duration-300">
-                <button aria-label="Light mode" class="flex items-center justify-center p-2 rounded-full text-blue-600 dark:text-on-surface-variant hover:text-blue-700 dark:hover:text-on-surface bg-white dark:bg-transparent shadow-sm dark:shadow-none transition-colors">
+                <button @click="setTheme('light')" aria-label="Light mode" 
+                    :class="theme === 'light' ? 'text-blue-600 dark:text-primary bg-white dark:bg-surface-container-highest shadow-sm' : 'text-slate-500 dark:text-on-surface-variant hover:text-slate-700 dark:hover:text-on-surface bg-transparent shadow-none'"
+                    class="flex items-center justify-center p-2 rounded-full transition-colors">
                     <span class="material-symbols-outlined text-[20px]">light_mode</span>
                 </button>
-                <button aria-label="Dark mode" class="flex items-center justify-center p-2 rounded-full text-slate-500 dark:text-primary hover:text-slate-700 dark:hover:text-primary bg-transparent dark:bg-surface-container-highest shadow-none dark:shadow-sm transition-colors">
+                <button @click="setTheme('dark')" aria-label="Dark mode" 
+                    :class="theme === 'dark' ? 'text-blue-600 dark:text-primary bg-white dark:bg-surface-container-highest shadow-sm' : 'text-slate-500 dark:text-on-surface-variant hover:text-slate-700 dark:hover:text-on-surface bg-transparent shadow-none'"
+                    class="flex items-center justify-center p-2 rounded-full transition-colors">
                     <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">dark_mode</span>
                 </button>
-                <button aria-label="System theme" class="flex items-center justify-center p-2 rounded-full text-slate-500 dark:text-on-surface-variant hover:text-slate-700 dark:hover:text-on-surface bg-transparent transition-colors">
+                <button @click="setTheme('system')" aria-label="System theme" 
+                    :class="theme === 'system' ? 'text-blue-600 dark:text-primary bg-white dark:bg-surface-container-highest shadow-sm' : 'text-slate-500 dark:text-on-surface-variant hover:text-slate-700 dark:hover:text-on-surface bg-transparent shadow-none'"
+                    class="flex items-center justify-center p-2 rounded-full transition-colors">
                     <span class="material-symbols-outlined text-[20px]">desktop_windows</span>
                 </button>
             </div>
@@ -105,5 +111,38 @@ new #[Layout('layouts.auth')] class extends Component
                 &copy; 2024 BNSMS Systems. Authorized Personnel Only.
             </p>
         </div>
+
+        <script>
+            document.addEventListener('alpine:init', () => {
+                Alpine.data('themeToggle', () => ({
+                    theme: localStorage.getItem('theme') || 'system',
+                    init() {
+                        this.applyTheme();
+                        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                            if (this.theme === 'system') this.applyTheme();
+                        });
+                    },
+                    setTheme(newTheme) {
+                        this.theme = newTheme;
+                        if (newTheme === 'system') {
+                            localStorage.removeItem('theme');
+                        } else {
+                            localStorage.setItem('theme', newTheme);
+                        }
+                        this.applyTheme();
+                    },
+                    applyTheme() {
+                        const isDark = this.theme === 'dark' || (this.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                        if (isDark) {
+                            document.documentElement.classList.add('dark');
+                            document.documentElement.setAttribute('data-theme', 'dark');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                            document.documentElement.setAttribute('data-theme', 'light');
+                        }
+                    }
+                }));
+            });
+        </script>
     </div>
 </div>

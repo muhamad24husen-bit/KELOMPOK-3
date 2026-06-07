@@ -25,24 +25,6 @@ new class extends Component {
 
         $rooms = $roomsQuery->get();
 
-        // Real data from SensorLog (last 10 min avg) with fallback
-        $avgTemp = SensorLog::where('metric', 'temperature')
-                        ->where('recorded_at', '>=', now()->subMinutes(10))
-                        ->avg('value');
-        $avgTemp = $avgTemp ? round($avgTemp, 1) : 0;
-
-        $activeRoomsCount = Room::count();
-        $totalRoomsCapacity = max($activeRoomsCount, 15); // dynamic denominator
-
-        // Warnings: count nodes marked offline + threshold alerts in last hour
-        $warningsCount = Activity::where('type', 'threshold_alert')
-            ->where('created_at', '>=', now()->subHour())
-            ->count();
-
-        // Building condition based on warnings
-        $buildingStatus = $warningsCount === 0 ? 'AMAN' : ($warningsCount >= 5 ? 'BAHAYA' : 'WASPADA');
-        $buildingColor  = $warningsCount === 0 ? 'text-emerald-400' : ($warningsCount >= 5 ? 'text-rose-400' : 'text-amber-400');
-
         // Real activity log from DB
         $activities = Activity::with('node')
             ->latest()
@@ -63,14 +45,8 @@ new class extends Component {
         }
 
         return $this->view([
-            'rooms'              => $rooms,
-            'avgTemp'            => $avgTemp,
-            'activeRoomsCount'   => $activeRoomsCount,
-            'totalRoomsCapacity' => $totalRoomsCapacity,
-            'warningsCount'      => $warningsCount,
-            'buildingStatus'     => $buildingStatus,
-            'buildingColor'      => $buildingColor,
-            'activities'         => $activities,
+            'rooms'      => $rooms,
+            'activities' => $activities,
         ]);
     }
 
@@ -86,7 +62,7 @@ new class extends Component {
     <!-- Header Section -->
     <header class="flex items-center justify-between mb-unit-lg">
         <div>
-            <h1 class="font-h1 text-h1 text-slate-100 tracking-tight">General Overview</h1>
+            <h1 class="font-h1 text-h1 text-slate-100 tracking-tight">Admin Dashboard</h1>
             <p class="font-body-sm text-body-sm text-slate-500 dark:text-slate-400 mt-1">Sistem Pemantauan Gedung Terpadu</p>
         </div>
         <div
@@ -95,59 +71,6 @@ new class extends Component {
             <span class="tracking-wide">LIVE</span>
         </div>
     </header>
-
-    <!-- Top Section: Stats -->
-    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-unit-md">
-        <!-- Stat 1: Building Condition -->
-        <div
-            class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Kondisi Gedung</span>
-                <span class="material-symbols-outlined {{ str_replace('text-', 'text-emerald-600 dark:text-', $buildingColor) }} fill">verified</span>
-            </div>
-            <div>
-                <span class="font-display text-display {{ str_replace('text-', 'text-emerald-600 dark:text-', $buildingColor) }} tracking-tight">{{ $buildingStatus }}</span>
-            </div>
-        </div>
-        <!-- Stat 2: Avg Temperature -->
-        <div
-            class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Rata-rata Suhu</span>
-                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">device_thermostat</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <span
-                    class="font-display text-display text-slate-800 dark:text-slate-100 tracking-tight">{{ $avgTemp > 0 ? number_format($avgTemp, 1) . '°C' : '—' }}</span>
-                <span class="font-body-sm text-body-sm text-slate-500 dark:text-slate-400 mb-2">
-                    {{ $avgTemp > 30 ? 'Tinggi' : ($avgTemp > 0 ? 'Stabil' : 'No data') }}
-                </span>
-            </div>
-        </div>
-        <!-- Stat 3: Active Rooms -->
-        <div
-            class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Ruangan Aktif</span>
-                <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">meeting_room</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <span class="font-display text-display text-slate-800 dark:text-slate-100 tracking-tight">{{ $activeRoomsCount }}<span
-                        class="text-slate-400 dark:text-slate-500 text-h2">/{{ $totalRoomsCapacity }}</span></span>
-            </div>
-        </div>
-        <!-- Stat 4: Warnings -->
-        <div
-            class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Peringatan</span>
-                <span class="material-symbols-outlined {{ $warningsCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500' }}">warning</span>
-            </div>
-            <div>
-                <span class="font-display text-display {{ $warningsCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400' }} tracking-tight">{{ $warningsCount }}</span>
-            </div>
-        </div>
-    </section>
 
     <!-- Middle Section: Room Status -->
     <section>

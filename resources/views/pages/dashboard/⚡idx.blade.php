@@ -32,24 +32,6 @@ new class extends Component {
         $rooms = $roomsQuery->get();
         $data['rooms'] = $rooms;
 
-        // Real data from SensorLog (last 10 min avg) with fallback
-        $avgTemp = SensorLog::where('metric', 'temperature')
-                        ->where('recorded_at', '>=', now()->subMinutes(10))
-                        ->avg('value');
-        $data['avgTemp'] = $avgTemp ? round($avgTemp, 1) : 0;
-
-        $activeRoomsCount = Room::count();
-        $data['activeRoomsCount'] = $activeRoomsCount;
-        $data['totalRoomsCapacity'] = max($activeRoomsCount, 15);
-
-        // Warnings
-        $warningsCount = Activity::where('type', 'threshold_alert')
-            ->where('created_at', '>=', now()->subHour())
-            ->count();
-        $data['warningsCount'] = $warningsCount;
-        $data['buildingStatus'] = $warningsCount === 0 ? 'AMAN' : ($warningsCount >= 5 ? 'BAHAYA' : 'WASPADA');
-        $data['buildingColor'] = $warningsCount === 0 ? 'text-emerald-400' : ($warningsCount >= 5 ? 'text-rose-400' : 'text-amber-400');
-
         // Activity log
         $data['activities'] = Activity::with('node')
             ->latest()
@@ -57,19 +39,6 @@ new class extends Component {
             ->get();
 
         // ── Data khusus per-role ─────────────────────────────────
-        if ($user->hasRole('super_admin')) {
-            $data['totalClients'] = Client::count();
-        }
-
-        if ($user->hasAnyRole(['operator'])) {
-            $data['pendingRequests'] = OperationRequest::where('status', 'pending')->count();
-        }
-
-        if ($user->hasAnyRole(['maintenance'])) {
-            $data['totalNodes'] = Node::count();
-            $data['offlineNodes'] = Node::where('status', 'offline')->count();
-        }
-
         if ($user->hasAnyRole(['viewer'])) {
             $data['myRequests'] = OperationRequest::where('requested_by', $user->id)
                 ->latest()
@@ -119,7 +88,7 @@ new class extends Component {
         <div>
             <h1 class="font-h1 text-h1 text-slate-100 tracking-tight">
                 @role('super_admin')
-                    Admin Overview
+                    Admin Dashboard
                 @elserole('client')
                     Dashboard Gedung
                 @elserole('operator')
@@ -143,88 +112,6 @@ new class extends Component {
             <span class="tracking-wide">LIVE</span>
         </div>
     </header>
-
-    <!-- ─── Stats Section (role-aware) ─────────────────────── -->
-    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-unit-md">
-        {{-- Stat: Kondisi Gedung (all roles) --}}
-        <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Kondisi Gedung</span>
-                <span class="material-symbols-outlined {{ str_replace('text-', 'text-emerald-600 dark:text-', $buildingColor) }} fill">verified</span>
-            </div>
-            <div>
-                <span class="font-display text-display {{ str_replace('text-', 'text-emerald-600 dark:text-', $buildingColor) }} tracking-tight">{{ $buildingStatus }}</span>
-            </div>
-        </div>
-
-        {{-- Stat: Suhu Rata-rata (all roles) --}}
-        <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Rata-rata Suhu</span>
-                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">device_thermostat</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <span class="font-display text-display text-slate-800 dark:text-slate-100 tracking-tight">{{ $avgTemp > 0 ? number_format($avgTemp, 1) . '°C' : '—' }}</span>
-                <span class="font-body-sm text-body-sm text-slate-500 dark:text-slate-400 mb-2">
-                    {{ $avgTemp > 30 ? 'Tinggi' : ($avgTemp > 0 ? 'Stabil' : 'No data') }}
-                </span>
-            </div>
-        </div>
-
-        {{-- Stat: Ruangan Aktif --}}
-        <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-            <div class="flex justify-between items-start">
-                <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Ruangan Aktif</span>
-                <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">meeting_room</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <span class="font-display text-display text-slate-800 dark:text-slate-100 tracking-tight">{{ $activeRoomsCount }}<span class="text-slate-400 dark:text-slate-500 text-h2">/{{ $totalRoomsCapacity }}</span></span>
-            </div>
-        </div>
-
-        {{-- Stat: Conditional per role --}}
-        @role('super_admin')
-            <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-                <div class="flex justify-between items-start">
-                    <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Total Klien</span>
-                    <span class="material-symbols-outlined text-violet-600 dark:text-violet-400">domain</span>
-                </div>
-                <div>
-                    <span class="font-display text-display text-slate-800 dark:text-slate-100 tracking-tight">{{ $totalClients ?? 0 }}</span>
-                </div>
-            </div>
-        @elserole('operator')
-            <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-                <div class="flex justify-between items-start">
-                    <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Tiket Pending</span>
-                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">confirmation_number</span>
-                </div>
-                <div>
-                    <span class="font-display text-display {{ ($pendingRequests ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100' }} tracking-tight">{{ $pendingRequests ?? 0 }}</span>
-                </div>
-            </div>
-        @elserole('maintenance')
-            <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-                <div class="flex justify-between items-start">
-                    <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Node Offline</span>
-                    <span class="material-symbols-outlined text-rose-600 dark:text-rose-400">wifi_off</span>
-                </div>
-                <div class="flex items-end gap-2">
-                    <span class="font-display text-display {{ ($offlineNodes ?? 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400' }} tracking-tight">{{ $offlineNodes ?? 0 }}<span class="text-slate-400 dark:text-slate-500 text-h2">/{{ $totalNodes ?? 0 }}</span></span>
-                </div>
-            </div>
-        @else
-            <div class="bg-white dark:bg-[#1a1c26] p-unit-md rounded-xl border border-slate-200 dark:border-surface-variant flex flex-col justify-between h-[120px] shadow-sm dark:shadow-none transition-colors duration-300">
-                <div class="flex justify-between items-start">
-                    <span class="font-label-md text-label-md text-slate-500 dark:text-slate-400">Peringatan</span>
-                    <span class="material-symbols-outlined {{ $warningsCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500' }}">warning</span>
-                </div>
-                <div>
-                    <span class="font-display text-display {{ $warningsCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400' }} tracking-tight">{{ $warningsCount }}</span>
-                </div>
-            </div>
-        @endrole
-    </section>
 
     <!-- ─── Quick Actions (role-aware) ────────────────────── -->
     <section class="flex flex-wrap gap-3">

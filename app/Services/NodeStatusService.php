@@ -22,15 +22,32 @@ class NodeStatusService
 
     /**
      * Store sensor status in cache with TTL.
+     * TTL default 900s (15 minutes) to survive transmission gaps.
      */
-    public static function set(int $sensorId, array $data, int $ttl = 300): void
+    public static function set(int $sensorId, array $data, int $ttl = 900): void
     {
         try {
+            // Attach cache timestamp for staleness detection in the UI
+            $data['_cached_at'] = now()->toIso8601String();
             Cache::put("node:status:{$sensorId}", $data, $ttl);
             Log::debug("NodeStatusService::set sensor #{$sensorId}", $data);
         } catch (\Throwable $e) {
             Log::warning("NodeStatusService cache write failed: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * Get MQTT subscriber connection status.
+     *
+     * @return array{status: string, connected_at: ?string, disconnected_at: ?string}
+     */
+    public static function getSubscriberStatus(): array
+    {
+        return [
+            'status'          => Cache::get('mqtt:subscriber:status', 'unknown'),
+            'connected_at'    => Cache::get('mqtt:subscriber:connected_at'),
+            'disconnected_at' => Cache::get('mqtt:subscriber:disconnected_at'),
+        ];
     }
 
     /**
@@ -81,3 +98,4 @@ class NodeStatusService
         }
     }
 }
+
