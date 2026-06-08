@@ -8,6 +8,7 @@ use App\Models\BEMS\SensorLog;
 use App\Models\BEMS\Activity;
 use App\Models\BEMS\OperationRequest;
 use App\Services\NodeStatusService;
+use App\Models\BEMS\PendingNode;
 
 new class extends Component {
     public string $search = '';
@@ -72,6 +73,9 @@ new class extends Component {
             ->values()
             ->toArray();
 
+        $data['pendingNodesCount'] = PendingNode::pending()->count();
+        $data['pendingRequestsCount'] = OperationRequest::where('status', 'pending')->count();
+
         return $this->view($data);
     }
 
@@ -116,37 +120,49 @@ new class extends Component {
     <!-- ─── Quick Actions (role-aware) ────────────────────── -->
     <section class="flex flex-wrap gap-3">
         @can('manage clients')
-            <a href="{{ route('admin.client') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 rounded-lg border border-violet-200 dark:border-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('admin.client') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-lg border border-violet-200 dark:border-violet-500/20 hover:bg-violet-50 dark:hover:bg-violet-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">domain</span>
                 Kelola Klien
             </a>
         @endcan
         @can('manage buildings')
-            <a href="{{ route('client.rooms') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/20 hover:bg-blue-200 dark:hover:bg-blue-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('client.rooms') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-500/20 hover:bg-blue-50 dark:hover:bg-blue-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">meeting_room</span>
                 Kelola Ruangan
             </a>
         @endcan
         @can('manage staff')
-            <a href="{{ route('client.staff') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-200 dark:hover:bg-indigo-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('client.staff') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">group</span>
                 Kelola Staf
             </a>
         @endcan
         @can('register nodes')
-            <a href="{{ route('maintenance.nodes') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-200 dark:hover:bg-emerald-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('maintenance.nodes') }}" wire:navigate class="relative flex items-center gap-2 px-4 py-2 bg-white dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">router</span>
                 Registrasi Node
+                @if(($pendingNodesCount ?? 0) > 0)
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 bg-rose-500 text-[10px] font-bold text-white flex items-center justify-center">{{ $pendingNodesCount }}</span>
+                    </span>
+                @endif
             </a>
         @endcan
         @can('approve requests')
-            <a href="{{ route('operator.requests') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-lg border border-amber-200 dark:border-amber-500/20 hover:bg-amber-200 dark:hover:bg-amber-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('operator.requests') }}" wire:navigate class="relative flex items-center gap-2 px-4 py-2 bg-white dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg border border-amber-200 dark:border-amber-500/20 hover:bg-amber-50 dark:hover:bg-amber-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">confirmation_number</span>
                 Tiket Permintaan
+                @if(($pendingRequestsCount ?? 0) > 0)
+                    <span class="absolute -top-2 -right-2 flex h-5 w-5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 bg-rose-500 text-[10px] font-bold text-white flex items-center justify-center">{{ $pendingRequestsCount }}</span>
+                    </span>
+                @endif
             </a>
         @endcan
         @can('request assistance')
-            <a href="{{ route('viewer.request') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-sky-100 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 rounded-lg border border-sky-200 dark:border-sky-500/20 hover:bg-sky-200 dark:hover:bg-sky-500/20 transition-colors font-label-sm text-label-sm">
+            <a href="{{ route('viewer.request') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-lg border border-sky-200 dark:border-sky-500/20 hover:bg-sky-50 dark:hover:bg-sky-500/20 shadow-sm transition-colors font-label-sm text-label-sm">
                 <span class="material-symbols-outlined text-[18px]">support_agent</span>
                 Kirim Permintaan
             </a>
