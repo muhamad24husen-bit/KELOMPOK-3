@@ -14,6 +14,7 @@ new class extends Component
 
     public $room;
     public $sensors = [];
+    public $mqttStatus = [];
 
     public function mount(Room $room)
     {
@@ -30,6 +31,7 @@ new class extends Component
     public function loadSensors()
     {
         $this->sensors = Sensor::where('room_id', $this->room->id)->get();
+        $this->mqttStatus = NodeStatusService::getSubscriberStatus();
 
         // Attach real-time Redis data and historical chart data to each sensor
         foreach ($this->sensors as $sensor) {
@@ -95,7 +97,7 @@ new class extends Component
 };
 ?>
 
-<div wire:poll.3s>
+<div wire:poll.3s="loadSensors">
     <!-- Phosphor Icons & Chart.js -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -108,8 +110,35 @@ new class extends Component
                 {{ $room->client->name ?? 'Unknown' }} - Floor {{ $room->floor }} | Real-time telemetry and control interface.
             </p>
         </div>
-        <div class="flex gap-4 w-full md:w-auto">
-            <!-- Node Sensor addition is now handled via Node Configuration drawer -->
+        <div class="flex gap-4 w-full md:w-auto items-center">
+            {{-- MQTT Connection Status Badge --}}
+            @php
+                $status = $mqttStatus['status'] ?? 'unknown';
+                $badgeClass = match($status) {
+                    'connected' => 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
+                    'disconnected' => 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20',
+                    default => 'bg-slate-100 dark:bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-500/20',
+                };
+                $dotClass = match($status) {
+                    'connected' => 'bg-emerald-500',
+                    'disconnected' => 'bg-rose-500',
+                    default => 'bg-slate-400',
+                };
+                $statusLabel = match($status) {
+                    'connected' => 'MQTT Connected',
+                    'disconnected' => 'MQTT Disconnected',
+                    default => 'MQTT Unknown',
+                };
+            @endphp
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold tracking-wide {{ $badgeClass }}">
+                <span class="relative flex h-2.5 w-2.5">
+                    @if($status === 'connected')
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ $dotClass }} opacity-75"></span>
+                    @endif
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 {{ $dotClass }}"></span>
+                </span>
+                {{ $statusLabel }}
+            </div>
         </div>
     </div>
 
@@ -128,94 +157,123 @@ new class extends Component
                 };
                 $liveVal = $sensor->live[$liveKey] ?? null;
                 $statVal = $liveVal ?? '—';
+
+                // Freshness detection: check if data is stale (> 60 seconds old)
+                $cachedAt = $sensor->live['_cached_at'] ?? null;
+                $isStale = false;
+                $lastUpdated = null;
+                if ($cachedAt) {
+                    $cachedTime = \Carbon\Carbon::parse($cachedAt);
+                    $isStale = $cachedTime->diffInSeconds(now()) > 60;
+                    $lastUpdated = $cachedTime->diffForHumans();
+                }
             @endphp
-            @if($sensor->visualization_type == 'line')
-                <x-sensor.line-chart 
-                    id="{{ $sensor->id }}" 
-                    label="{{ ucfirst($sensor->measurement_type) }}" 
-                    value="{{ $liveVal ?? '—' }}" 
-                    unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
-                    color="{{ $sensor->measurement_type == 'temperature' ? '#b4c5ff' : '#34d399' }}"
-                    :data="array_combine(
-                        count($sensor->chart_labels) ? $sensor->chart_labels : ['—'],
-                        count($sensor->chart_data)   ? $sensor->chart_data   : [0]
-                    )"
-                />
-            @elseif($sensor->visualization_type == 'gauge')
-                <x-sensor.gauge 
-                    id="{{ $sensor->id }}" 
-                    label="{{ ucfirst($sensor->measurement_type) }}" 
-                    value="{{ $statVal }}" 
-                    unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
-                    max="100"
-                    color="#34d399"
-                />
-            @elseif($sensor->visualization_type == 'light')
-                <div class="flex flex-col">
-                    <x-sensor.light-control 
+            <div class="relative">
+                {{-- Stale data indicator --}}
+                @if($cachedAt && $isStale)
+                    <div class="absolute -top-2 -right-2 z-10">
+                        <span class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                            <span class="material-symbols-outlined text-[12px]">schedule</span>
+                            Stale
+                        </span>
+                    </div>
+                @endif
+
+                @if($sensor->visualization_type == 'line')
+                    <x-sensor.line-chart 
                         id="{{ $sensor->id }}" 
-                        label="Light Status" 
-                        :status="$sensor->is_enabled"
+                        label="{{ ucfirst($sensor->measurement_type) }}" 
+                        value="{{ $liveVal ?? '—' }}" 
+                        unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
+                        color="{{ $sensor->measurement_type == 'temperature' ? '#b4c5ff' : '#34d399' }}"
+                        :data="array_combine(
+                            count($sensor->chart_labels) ? $sensor->chart_labels : ['—'],
+                            count($sensor->chart_data)   ? $sensor->chart_data   : [0]
+                        )"
                     />
-                    {{-- Tombol toggle light via MQTT --}}
-                    <button
-                        wire:click="sendCommand({{ $sensor->id }}, '{{ $sensor->is_enabled ? 'light_off' : 'light_on' }}')"
-                        class="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
-                            {{ $sensor->is_enabled
-                                ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-500/20'
-                                : 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-500/20'
-                            }}"
-                    >
-                        {{ $sensor->is_enabled ? '⚡ Matikan Lampu' : '💡 Nyalakan Lampu' }}
-                    </button>
-                </div>
-            @elseif($sensor->visualization_type == 'trends')
-                <div class="col-span-full">
-                    <x-sensor.live-trends 
+                @elseif($sensor->visualization_type == 'gauge')
+                    <x-sensor.gauge 
                         id="{{ $sensor->id }}" 
-                        title="{{ ucfirst($sensor->measurement_type) }} Trends" 
-                        :labels="count($sensor->chart_labels) ? $sensor->chart_labels : ['—']"
-                        :datasets="[
-                            [
-                                'label' => ucfirst($sensor->measurement_type),
-                                'color' => '#b4c5ff',
-                                'data'  => count($sensor->chart_data) ? $sensor->chart_data : [0]
-                            ]
-                        ]"
+                        label="{{ ucfirst($sensor->measurement_type) }}" 
+                        value="{{ $statVal }}" 
+                        unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
+                        max="100"
+                        color="#34d399"
                     />
-                </div>
-            @elseif($sensor->visualization_type == 'ac')
-                <div class="flex flex-col">
-                    <x-sensor.ac-control 
-                        id="{{ $sensor->id }}" 
-                        label="AC Control" 
-                        status="{{ $sensor->is_enabled ? 'Active' : 'Inactive' }}"
-                        target="{{ $sensor->meta['ac_target'] ?? 24 }}"
-                    />
-                    {{-- Tombol toggle AC via MQTT --}}
-                    <div class="mt-2 flex gap-2">
+                @elseif($sensor->visualization_type == 'light')
+                    <div class="flex flex-col">
+                        <x-sensor.light-control 
+                            id="{{ $sensor->id }}" 
+                            label="Light Status" 
+                            :status="$sensor->is_enabled"
+                        />
+                        {{-- Tombol toggle light via MQTT --}}
                         <button
-                            wire:click="sendCommand({{ $sensor->id }}, '{{ $sensor->is_enabled ? 'ac_off' : 'ac_on' }}')"
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
+                            wire:click="sendCommand({{ $sensor->id }}, '{{ $sensor->is_enabled ? 'light_off' : 'light_on' }}')"
+                            class="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
                                 {{ $sensor->is_enabled
-                                    ? 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400'
-                                    : 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                                    ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-500/20'
+                                    : 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-500/20'
                                 }}"
                         >
-                            {{ $sensor->is_enabled ? '❌ AC Off' : '❄️ AC On' }}
+                            {{ $sensor->is_enabled ? '⚡ Matikan Lampu' : '💡 Nyalakan Lampu' }}
                         </button>
                     </div>
-                </div>
-            @else
-                <x-sensor.stat-widget 
-                    id="{{ $sensor->id }}" 
-                    label="{{ ucfirst($sensor->measurement_type) }}" 
-                    value="{{ $statVal }}" 
-                    unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
-                    icon="{{ $sensor->measurement_type == 'temperature' ? 'thermostat' : 'sensors' }}"
-                    color="#b4c5ff"
-                />
-            @endif
+                @elseif($sensor->visualization_type == 'trends')
+                    <div class="col-span-full">
+                        <x-sensor.live-trends 
+                            id="{{ $sensor->id }}" 
+                            title="{{ ucfirst($sensor->measurement_type) }} Trends" 
+                            :labels="count($sensor->chart_labels) ? $sensor->chart_labels : ['—']"
+                            :datasets="[
+                                [
+                                    'label' => ucfirst($sensor->measurement_type),
+                                    'color' => '#b4c5ff',
+                                    'data'  => count($sensor->chart_data) ? $sensor->chart_data : [0]
+                                ]
+                            ]"
+                        />
+                    </div>
+                @elseif($sensor->visualization_type == 'ac')
+                    <div class="flex flex-col">
+                        <x-sensor.ac-control 
+                            id="{{ $sensor->id }}" 
+                            label="AC Control" 
+                            status="{{ $sensor->is_enabled ? 'Active' : 'Inactive' }}"
+                            target="{{ $sensor->meta['ac_target'] ?? 24 }}"
+                        />
+                        {{-- Tombol toggle AC via MQTT --}}
+                        <div class="mt-2 flex gap-2">
+                            <button
+                                wire:click="sendCommand({{ $sensor->id }}, '{{ $sensor->is_enabled ? 'ac_off' : 'ac_on' }}')"
+                                class="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
+                                    {{ $sensor->is_enabled
+                                        ? 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                                        : 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                                    }}"
+                            >
+                                {{ $sensor->is_enabled ? '❌ AC Off' : '❄️ AC On' }}
+                            </button>
+                        </div>
+                    </div>
+                @else
+                    <x-sensor.stat-widget 
+                        id="{{ $sensor->id }}" 
+                        label="{{ ucfirst($sensor->measurement_type) }}" 
+                        value="{{ $statVal }}" 
+                        unit="{{ $sensor->unit == 'celsius' ? '°C' : ($sensor->unit == 'percent' ? '%' : $sensor->unit) }}"
+                        icon="{{ $sensor->measurement_type == 'temperature' ? 'thermostat' : 'sensors' }}"
+                        color="#b4c5ff"
+                    />
+                @endif
+
+                {{-- Last updated timestamp --}}
+                @if($cachedAt)
+                    <p class="text-[10px] text-slate-400 dark:text-slate-600 mt-1 text-right font-mono">
+                        Updated {{ $lastUpdated }}
+                    </p>
+                @endif
+            </div>
         @empty
             <div class="col-span-full py-12 text-center bg-slate-50 dark:bg-surface-container border border-slate-200 dark:border-slate-800 rounded-xl transition-colors duration-300">
                 <span class="material-symbols-outlined text-4xl text-slate-400 dark:text-slate-500 mb-2">sensors_off</span>

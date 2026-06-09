@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     <meta charset="utf-8">
@@ -11,6 +11,18 @@
         rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         rel="stylesheet" />
+
+    <script>
+        const theme = localStorage.getItem('theme') || 'system';
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    </script>
 
     <style>
         .material-symbols-outlined {
@@ -60,10 +72,6 @@
         {{-- Main Nav --}}
         <nav class="flex-1 py-4 flex flex-col gap-2 px-4 overflow-y-auto">
             @role('super_admin')
-            <a class="{{ request()->routeIs('admin') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('admin') }}" wire:navigate>
-                <span class="material-symbols-outlined">dashboard</span>
-                Overview
-            </a>
             <a class="{{ request()->routeIs('admin.client') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('admin.client') }}" wire:navigate>
                 <span class="material-symbols-outlined">layers</span>
                 Buildings
@@ -153,15 +161,15 @@
     <!-- TopNavBar -->
     <header class="bg-white/90 dark:bg-slate-950/80 backdrop-blur-md font-inter text-sm antialiased docked full-width top-0 border-b border-slate-200 dark:border-slate-800 shadow-sm shadow-slate-200/50 dark:shadow-blue-900/10 flex justify-between items-center w-full px-6 h-14 ml-[260px] max-w-[calc(100%-260px)] fixed z-40 transition-colors duration-300">
         <div class="flex items-center gap-4">
+            <button onclick="history.back()" class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer active:scale-95 duration-150 rounded-full flex items-center justify-center" title="Kembali">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </button>
             <div class="text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <span class="material-symbols-outlined text-blue-600 dark:text-blue-500">domain</span>
                 BNSMS SmartBuilding
             </div>
         </div>
         <div class="flex items-center gap-2">
-            {{-- Node Discovery Drawer (trigger + panel) --}}
-            <livewire:node-discovery-drawer />
-
             {{-- Theme Toggle --}}
             <x-theme-toggle class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer active:scale-95 duration-150 rounded-full" />
 
