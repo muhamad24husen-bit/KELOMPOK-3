@@ -64,6 +64,11 @@ new class extends Component
                 'password' => Hash::make($this->code . "1809##")
             ]
         );
+        
+        // Ensure user has the client role
+        if (!$user->hasRole('client')) {
+            $user->assignRole('client');
+        }
 
         // Create the client
         Client::create([
@@ -116,7 +121,7 @@ new class extends Component
             <x-input label="Total Rooms" wire:model="total_rooms" type="number" placeholder="0" />
 
             {{-- Building Thumbnail --}}
-            <x-file label="Building Thumbnail" wire:model="thumbnail" accept="image/*" />
+            <x-file label="Building Thumbnail (512x512 px, Maks. 5MB)" wire:model="thumbnail" accept="image/*" />
             
             @if ($thumbnail)
                 <div class="mt-2 relative w-32 h-32 rounded-lg overflow-hidden border border-slate-700">

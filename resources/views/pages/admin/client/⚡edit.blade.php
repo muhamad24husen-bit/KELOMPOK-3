@@ -21,6 +21,7 @@ new class extends Component
     public $thumbnail;
     public $existingThumbnail;
     public $expirity;
+    public $removeThumbnail = false;
 
     #[On('enableEditClient')]
     public function enableEditClient($clientId)
@@ -35,8 +36,15 @@ new class extends Component
         $this->total_rooms = $client->total_rooms;
         $this->existingThumbnail = $client->thumbnail;
         $this->expirity = $client->expirity;
+        $this->removeThumbnail = false;
         
         $this->clientEditDrawer = true;
+    }
+
+    public function removeExistingThumbnail()
+    {
+        $this->existingThumbnail = null;
+        $this->removeThumbnail = true;
     }
 
     public function updateClient()
@@ -64,6 +72,8 @@ new class extends Component
 
         if ($this->thumbnail) {
             $data['thumbnail'] = $this->thumbnail->store('thumbnails', 'public');
+        } elseif ($this->removeThumbnail) {
+            $data['thumbnail'] = null;
         }
 
         $client->update($data);
@@ -94,11 +104,14 @@ new class extends Component
 
             <x-input label="Total Rooms" wire:model="total_rooms" type="number" />
 
-            <x-file label="Building Thumbnail" wire:model="thumbnail" accept="image/*" />
+            <x-file label="Building Thumbnail (512x512 px, Maks. 5MB)" wire:model="thumbnail" accept="image/*" />
             
             @if ($existingThumbnail && !$thumbnail)
-                <div class="mt-2 relative w-32 h-32 rounded-lg overflow-hidden border border-slate-700">
+                <div class="mt-2 relative w-32 h-32 rounded-lg overflow-hidden border border-slate-700 group">
                     <img src="{{ asset('storage/' . $existingThumbnail) }}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <x-button type="button" icon="o-trash" wire:click="removeExistingThumbnail" class="btn-error btn-sm text-white" tooltip="Remove thumbnail" />
+                    </div>
                 </div>
             @endif
 

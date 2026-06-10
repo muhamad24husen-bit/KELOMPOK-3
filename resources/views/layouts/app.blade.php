@@ -71,6 +71,12 @@
 
         {{-- Main Nav --}}
         <nav class="flex-1 py-4 flex flex-col gap-2 px-4 overflow-y-auto">
+            {{-- Dashboard link for all roles --}}
+            <a class="{{ request()->routeIs('dashboard') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('dashboard') }}" wire:navigate>
+                <span class="material-symbols-outlined">monitoring</span>
+                General Dashboard
+            </a>
+
             @role('super_admin')
             <a class="{{ request()->routeIs('admin.client') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('admin.client') }}" wire:navigate>
                 <span class="material-symbols-outlined">layers</span>
@@ -141,12 +147,6 @@
                 Requests
             </a>
             @endrole
-
-            {{-- Dashboard link for all roles --}}
-            <a class="{{ request()->routeIs('dashboard') ? 'bg-[#dbeafe] dark:bg-blue-600/10 text-blue-600 dark:text-blue-500 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100' }} flex items-center gap-3 px-4 py-3 duration-200 rounded-lg" href="{{ route('dashboard') }}" wire:navigate>
-                <span class="material-symbols-outlined">monitoring</span>
-                General Dashboard
-            </a>
         </nav>
 
         {{-- Footer Nav --}}

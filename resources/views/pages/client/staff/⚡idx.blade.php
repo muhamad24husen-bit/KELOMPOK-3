@@ -20,9 +20,14 @@ new class extends Component {
         $user = auth()->user();
         $client = $user->bemsClient;
 
-        $staffMembers = Staff::with('user')
-            ->where('client_id', $client->id)
-            ->get();
+        if ($user->hasRole('super_admin')) {
+            $staffMembers = Staff::with('user')->get();
+        } else {
+            abort_if(!$client, 403, 'No client profile found.');
+            $staffMembers = Staff::with('user')
+                ->where('client_id', $client->id)
+                ->get();
+        }
 
         return $this->view(['staffMembers' => $staffMembers, 'client' => $client]);
     }
@@ -37,6 +42,7 @@ new class extends Component {
         ]);
 
         $client = auth()->user()->bemsClient;
+        abort_if(!$client, 403, 'Cannot create staff: No client profile found. Super Admins should use the Admin Panel.');
 
         // Create user
         $newUser = User::create([

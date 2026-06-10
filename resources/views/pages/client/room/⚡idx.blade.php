@@ -18,11 +18,19 @@ new class extends Component {
         $user = auth()->user();
         $client = $user->bemsClient;
 
-        $rooms = Room::withoutGlobalScopes()
-            ->where('client_id', $client->id)
-            ->when($this->search, fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
-            ->withCount('sensors')
-            ->paginate(12);
+        if ($user->hasRole('super_admin')) {
+            $rooms = Room::withoutGlobalScopes()
+                ->when($this->search, fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
+                ->withCount('sensors')
+                ->paginate(12);
+        } else {
+            abort_if(!$client, 403, 'No client profile found.');
+            $rooms = Room::withoutGlobalScopes()
+                ->where('client_id', $client->id)
+                ->when($this->search, fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
+                ->withCount('sensors')
+                ->paginate(12);
+        }
 
         return $this->view(['rooms' => $rooms, 'client' => $client]);
     }
@@ -35,6 +43,7 @@ new class extends Component {
         ]);
 
         $client = auth()->user()->bemsClient;
+        abort_if(!$client, 403, 'Cannot create room: No client profile found. Super Admins should use the Admin Panel.');
 
         Room::create([
             'client_id' => $client->id,

@@ -9,12 +9,20 @@ new class extends Component {
     {
         $user = auth()->user();
         $clientId = $user->getTenantClientId();
-        $stats = NodeStatusService::getClientStats($clientId);
 
-        $rooms = Room::withoutGlobalScopes()
-            ->where('client_id', $clientId)
-            ->withCount('sensors', 'nodes')
-            ->get();
+        // Cegah error TypeError jika clientId null
+        if (!$clientId && !$user->hasRole('super_admin')) {
+            abort(403, 'Akses Ditolak: Akun Anda belum terhubung dengan gedung manapun.');
+        }
+
+        // Jika super_admin, kita pass 0 agar tidak error (tipe data int), stats akan bernilai 0.
+        $stats = NodeStatusService::getClientStats($clientId ?? 0);
+
+        $roomsQuery = Room::withoutGlobalScopes()->withCount('sensors', 'nodes');
+        if ($clientId) {
+            $roomsQuery->where('client_id', $clientId);
+        }
+        $rooms = $roomsQuery->get();
 
         return $this->view(['rooms' => $rooms, 'stats' => $stats]);
     }
